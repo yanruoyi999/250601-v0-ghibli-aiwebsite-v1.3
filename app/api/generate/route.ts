@@ -25,6 +25,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "提示词不能为空" }, { status: 400 })
     }
 
+    // 从环境变量获取API密钥，如果没有则使用默认值
+    const apiKey = process.env.ISMAQUE_API_KEY || "sk-kj4qrPmapiE4R37KoGfVQbVfgwOJ9ybDi5pHnWwOcBSVRJr5"
+
     console.log(`🎨 ismaque.org gpt-image-1 生成: {
   userPrompt: '${prompt}',
   aspectRatio: '${aspectRatio}',
@@ -40,11 +43,11 @@ export async function POST(request: NextRequest) {
     
     console.log("📡 发送请求到 ismaque.org API...")
     
-    // 使用麻雀API密钥
+    // 使用环境变量中的API密钥
     const response = await fetch("https://ismaque.org/v1/images/generations", {
       method: "POST",
       headers: {
-        "Authorization": "Bearer sk-kj4qrPmapiE4R37KoGfVQbVfgwOJ9ybDi5pHnWwOcBSVRJr5",
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
