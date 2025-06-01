@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "提示词不能为空" }, { status: 400 })
     }
 
-    // 从环境变量获取API密钥，如果没有则使用默认值
-    const apiKey = process.env.ISMAQUE_API_KEY || "sk-kj4qrPmapiE4R37KoGfVQbVfgwOJ9ybDi5pHnWwOcBSVRJr5"
+    // 从环境变量获取API密钥，如果没有则使用有效的默认值
+    const apiKey = process.env.ISMAQUE_API_KEY || "sk-9jXJzcI62bIyIscKZXgFyvYrNATC5cEo7zvNmJNgPDFdBrgq"
 
     console.log(`🎨 ismaque.org gpt-image-1 生成: {
   userPrompt: '${prompt}',
