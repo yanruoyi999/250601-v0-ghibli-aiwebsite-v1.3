@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-// 构建吉卜力风格提示词
+// 构建吉卜力风格提示词 - 简化版，避免触发安全过滤
 const buildGhibliPrompt = (userPrompt: string) => {
-  return `Studio Ghibli animation style, ${userPrompt}, hand-drawn 2D cel animation, watercolor painting technique, Hayao Miyazaki art direction, soft dreamlike atmosphere, peaceful serene mood, extremely soft muted watercolor tones, very low saturation pastels, extremely soft subtle lines, barely visible line art, minimal line definition, gentle lighting, perfect anatomy, natural pose, professional animation quality, avoid strong lines, avoid bold outlines, avoid thick lines, extremely soft diffused natural lighting, minimal contrast lighting`
+  return `Studio Ghibli animation style, ${userPrompt}, hand-drawn 2D cel animation, watercolor painting technique, soft dreamlike atmosphere, peaceful mood`
 }
 
 // 尺寸映射
@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "提示词不能为空" }, { status: 400 })
     }
 
-    // 从环境变量获取API密钥，如果没有则使用有效的默认值
-    const apiKey = process.env.ISMAQUE_API_KEY || "sk-9jXJzcI62bIyIscKZXgFyvYrNATC5cEo7zvNmJNgPDFdBrgq"
+    // 使用麻雀API密钥
+    const apiKey = process.env.ISMAQUE_API_KEY || "sk-kj4qrPmapiE4R37KoGfVQbVfgwOJ9ybDi5pHnWwOcBSVRJr5"
 
     console.log(`🎨 ismaque.org gpt-image-1 生成: {
   userPrompt: '${prompt}',
@@ -42,40 +42,87 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now()
     
     console.log("📡 发送请求到 ismaque.org API...")
+    console.log("📄 请求参数:", {
+      prompt: ghibliPrompt.substring(0, 100) + "...",
+      n: 1,
+      model: "gpt-image-1",
+      size: mappedSize
+    })
     
-    // 使用环境变量中的API密钥
-    const response = await fetch("https://ismaque.org/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        prompt: ghibliPrompt,
-        n: 1,
-        model: "gpt-image-1",
-        size: mappedSize
-      })
+    // 完全按照示例代码的格式，只使用基本参数
+    const myHeaders = new Headers()
+    myHeaders.append("Authorization", `Bearer ${apiKey}`)
+    myHeaders.append("Content-Type", "application/json")
+
+    const raw = JSON.stringify({
+      "prompt": ghibliPrompt,
+      "n": 1,
+      "model": "gpt-image-1",
+      "size": mappedSize
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("❌ ismaque.org API错误:", response.status, errorText)
-      throw new Error(`API请求失败: ${response.status} - ${errorText}`)
+    const requestOptions = {
+      method: 'POST',
+      headers: myHeaders,
+      body: raw
     }
 
-    const result = await response.json()
-    const requestTime = Date.now() - startTime
-    
-    console.log(`⏱️ ismaque.org API请求耗时: ${requestTime}ms`)
-    console.log("📥 API响应:", response.status, "OK")
+    const response = await fetch("https://ismaque.org/v1/images/generations", requestOptions)
 
-    if (result.data && result.data[0] && result.data[0].url) {
-      console.log(`🎉 顶级质量图片生成完成: ${result.data[0].url}`)
+    const requestTime = Date.now() - startTime
+    console.log(`⏱️ ismaque.org API请求耗时: ${requestTime}ms`)
+    console.log("📥 API响应:", response.status, response.statusText)
+
+    // 获取响应文本
+    const responseText = await response.text()
+    console.log("📄 API响应内容:", responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""))
+
+    if (!response.ok) {
+      console.error("❌ ismaque.org API错误:", response.status, responseText)
+      
+      // 检查特定错误类型  
+      if (response.status === 400) {
+        throw new Error("请求被安全系统拒绝，请尝试调整提示词内容")
+      }
+      
+      throw new Error(`API请求失败: ${response.status} - ${responseText}`)
+    }
+
+    // 尝试解析JSON
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error("❌ JSON解析失败:", parseError)
+      console.error("📄 原始响应:", responseText)
+      throw new Error(`API返回非JSON格式数据: ${responseText.substring(0, 100)}...`)
+    }
+
+    console.log("📊 解析后的结果:", JSON.stringify(result, null, 2))
+
+    // 处理标准OpenAI格式响应
+    let imageUrl = null
+    
+    if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+      const imageData = result.data[0]
+      if (imageData.url) {
+        imageUrl = imageData.url
+        console.log("✅ 找到URL格式图片:", imageUrl.substring(0, 100) + "...")
+      } else if (imageData.b64_json) {
+        imageUrl = `data:image/png;base64,${imageData.b64_json}`
+        console.log("✅ 找到base64格式图片，长度:", imageData.b64_json.length)
+      }
+    } else {
+      console.error("❌ 无法从API响应中提取图片URL:", result)
+      throw new Error(`API返回数据格式异常: 无法找到图片数据`)
+    }
+
+    if (imageUrl) {
+      console.log(`🎉 图片生成完成: ${imageUrl.substring(0, 100)}...`)
       
       return NextResponse.json({
         success: true,
-        imageUrl: result.data[0].url,
+        imageUrl: imageUrl,
         message: "图片生成成功！",
         stats: {
           totalTime: `${requestTime}ms`,
@@ -85,7 +132,7 @@ export async function POST(request: NextRequest) {
         }
       })
     } else {
-      throw new Error("API返回数据格式异常")
+      throw new Error("无法获取生成的图片")
     }
 
   } catch (error: any) {
