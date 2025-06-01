@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
 
     const startTime = Date.now()
 
-    // 使用ismaque.org API
+    // 使用ismaque.org API - 更新为有效的API密钥
     const myHeaders = new Headers()
-    myHeaders.append("Authorization", "Bearer sk-9jXJzcI62bIyIscKZXgFyvYrNATC5cEo7zvNmJNgPDFdBrgq")
+    myHeaders.append("Authorization", "Bearer sk-kj4qrPmapiE4R37KoGfVQbVfgwOJ9ybDi5pHnWwOcBSVRJr5")
     myHeaders.append("Content-Type", "application/json")
 
     const raw = JSON.stringify({
