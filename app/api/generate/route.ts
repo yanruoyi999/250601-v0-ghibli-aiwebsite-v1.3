@@ -67,6 +67,11 @@ export async function POST(request: NextRequest) {
       body: raw
     }
 
+    console.log(`📡 正在发送请求到: https://ismaque.org/v1/images/generations`);
+    console.log("📄 请求头部:", Object.fromEntries(myHeaders.entries()));
+    console.log("📄 请求体:", raw);
+    console.log("📄 请求选项:", requestOptions);
+
     const response = await fetch("https://ismaque.org/v1/images/generations", requestOptions)
 
     const requestTime = Date.now() - startTime
