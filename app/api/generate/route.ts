@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
       "prompt": ghibliPrompt,
       "n": 1,
       "model": "gpt-image-1",
-      "size": mappedSize
+      "size": mappedSize,
+      "async": true
     })
 
     const requestOptions = {
@@ -67,20 +68,15 @@ export async function POST(request: NextRequest) {
       body: raw
     }
 
-    console.log(`📡 正在发送请求到: https://ismaque.org/v1/images/generations`);
-    console.log("📄 请求头部:", Object.fromEntries(myHeaders.entries()));
-    console.log("📄 请求体:", raw);
-    console.log("📄 请求选项:", requestOptions);
-
     const response = await fetch("https://ismaque.org/v1/images/generations", requestOptions)
 
     const requestTime = Date.now() - startTime
     console.log(`⏱️ ismaque.org API请求耗时: ${requestTime}ms`)
-    console.log("📥 API响应:", response.status, response.statusText)
+    console.log("📥 API响应状态:", response.status, response.statusText)
 
-    // 获取响应文本
-    const responseText = await response.text()
-    console.log("📄 API响应内容:", responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""))
+    // !!! 新增日志打印原始响应文本 !!!
+    const responseText = await response.text();
+    console.log("📄 原始 API 响应内容:", responseText);
 
     if (!response.ok) {
       console.error("❌ ismaque.org API错误:", response.status, responseText)
