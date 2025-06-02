@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     console.log("📄 请求参数:", {
       prompt: ghibliPrompt.substring(0, 100) + "...",
       n: 1,
-      model: "gpt-image-1",
+      model: "gpt-image-1-vip",
       size: mappedSize
     })
     
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     const raw = JSON.stringify({
       "prompt": ghibliPrompt,
       "n": 1,
-      "model": "gpt-image-1",
+      "model": "gpt-image-1-vip",
       "size": mappedSize,
       "async": true
     })
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
         message: "图片生成成功！",
         stats: {
           totalTime: `${requestTime}ms`,
-          model: "gpt-image-1",
+          model: "gpt-image-1-vip",
           size: mappedSize,
           promptLength: ghibliPrompt.length
         }
