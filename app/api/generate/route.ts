@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // 使用麻雀API密钥
     const apiKey = process.env.ISMAQUE_API_KEY || "sk-kj4qrPmapiE4R37KoGfVQbVfgwOJ9ybDi5pHnWwOcBSVRJr5"
 
-    console.log(`🎨 ismaque.org gpt-image-1 生成: {
+    console.log(`🎨 ismaque.org flux-kontext-pro 生成: {
   userPrompt: '${prompt}',
   aspectRatio: '${aspectRatio}',
   quality: '${quality}',
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     console.log("📄 请求参数:", {
       prompt: ghibliPrompt.substring(0, 100) + "...",
       n: 1,
-      model: "gpt-image-1-vip",
+      model: "flux-kontext-pro",
       size: mappedSize
     })
     
@@ -57,9 +57,8 @@ export async function POST(request: NextRequest) {
     const raw = JSON.stringify({
       "prompt": ghibliPrompt,
       "n": 1,
-      "model": "gpt-image-1-vip",
-      "size": mappedSize,
-      "async": true
+      "model": "flux-kontext-pro",
+      "size": mappedSize
     })
 
     const requestOptions = {
@@ -127,7 +126,7 @@ export async function POST(request: NextRequest) {
         message: "图片生成成功！",
         stats: {
           totalTime: `${requestTime}ms`,
-          model: "gpt-image-1-vip",
+          model: "flux-kontext-pro",
           size: mappedSize,
           promptLength: ghibliPrompt.length
         }
