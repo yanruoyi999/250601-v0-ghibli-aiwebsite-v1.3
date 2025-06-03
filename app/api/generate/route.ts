@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       prompt: ghibliPrompt.substring(0, 100) + "...",
       n: 1,
       model: "flux-kontext-pro",
-      size: mappedSize
+      aspect_ratio: aspectRatio
     })
     
     // 完全按照示例代码的格式，只使用基本参数
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       "prompt": ghibliPrompt,
       "n": 1,
       "model": "flux-kontext-pro",
-      "size": mappedSize
+      "aspect_ratio": aspectRatio
     })
 
     const requestOptions = {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
         stats: {
           totalTime: `${requestTime}ms`,
           model: "flux-kontext-pro",
-          size: mappedSize,
+          aspectRatio: aspectRatio,
           promptLength: ghibliPrompt.length
         }
       })
