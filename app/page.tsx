@@ -42,8 +42,19 @@ export default function GhibliAI() {
       // Read file as Base64
       const reader = new FileReader()
       reader.onloadend = () => {
-        setReferenceImageBase64(reader.result as string) // Store Base64 string
+        const base64String = reader.result as string
+        setReferenceImageBase64(base64String) // Store Base64 string
         console.log("✅ Reference image read as Base64")
+
+        // If prompt is already filled, trigger generation automatically after reading image
+        if (prompt.trim()) {
+          console.log("Prompt already filled, triggering generation automatically...")
+          // Call generateImage function, passing the base64 string directly
+          // This bypasses the potential state update delay
+          generateImageWithImage(prompt.trim(), aspectRatio, quality, base64String)
+        } else {
+          console.log("Please enter a prompt to generate with the image.")
+        }
       }
       reader.onerror = (error) => {
         console.error("❌ Error reading reference image file:", error)
@@ -146,6 +157,99 @@ export default function GhibliAI() {
         if (!isGenerating) setProgress(0)
       }, 2000)
     }
+  }
+
+  // Define a new function to handle generation with image data passed directly
+  const generateImageWithImage = async (currentPrompt: string, currentAspectRatio: string, currentQuality: string, currentInputImage: string | null) => {
+    setIsGenerating(true)
+    setProgress(5) // Start progress
+    
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev < 85) {
+          const increment = Math.random() * 6 + 2
+          const newProgress = Math.min(prev + increment, 85)
+          return newProgress
+        }
+        return prev
+      })
+    }, 300)
+
+    try {
+      const startTime = Date.now()
+      
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: currentPrompt,
+          aspectRatio: currentAspectRatio,
+          quality: currentQuality,
+          ...(currentInputImage && { input_image: currentInputImage }), // Use directly passed image data
+        }),
+      })
+
+      const data = await response.json()
+      const endTime = Date.now()
+      const generationTime = ((endTime - startTime) / 1000).toFixed(1)
+      
+      console.log(`⏱️ 生成耗时: ${generationTime}秒`)
+
+      if (data.success) {
+        setProgress(95)
+        setTimeout(() => setProgress(100), 200)
+        
+        const newImage: GeneratedImage = {
+          id: Date.now().toString(),
+          url: data.imageUrl,
+          prompt: data.prompt, // Assuming API returns the prompt
+          aspectRatio: data.aspectRatio || currentAspectRatio, // Use API aspect ratio if available, else current
+          timestamp: Date.now(),
+        }
+
+        setCurrentImage(newImage)
+
+        // Save to localStorage
+        const savedImages = JSON.parse(localStorage.getItem("ghibli-images") || "[]")
+        savedImages.unshift(newImage)
+        localStorage.setItem("ghibli-images", JSON.stringify(savedImages.slice(0, 20)))
+        
+        console.log("✅ 图片生成成功!", newImage)
+      } else {
+        throw new Error(data.error || data.details || "生成失败")
+      }
+    } catch (error) {
+      console.error("❌ 生成失败:", error)
+      setProgress(0)
+      
+      const errorMessage = error instanceof Error ? error.message : "未知错误"
+      if (errorMessage.includes("API请求失败")) {
+        alert("API服务暂时不可用，请稍后重试")
+      } else if (errorMessage.includes("网络")) {
+        alert("网络连接问题，请检查网络后重试")
+      } else {
+        alert(`图片生成失败: ${errorMessage}`)
+      }
+    } finally {
+      clearInterval(progressInterval)
+      setIsGenerating(false)
+      setTimeout(() => {
+        if (!isGenerating) setProgress(0)
+      }, 2000)
+    }
+  }
+
+  // Modify the original generateImage to call the new function, using state values
+  // This will be called when the button is clicked without image upload or if prompt is filled before image upload
+  const originalGenerateImage = async () => {
+    if (!prompt.trim() && !referenceImageBase64) {
+      alert("请输入场景描述或上传参考图片")
+      return
+    }
+    // Call the new function with current state values
+    generateImageWithImage(prompt.trim(), aspectRatio, quality, referenceImageBase64)
   }
 
   const downloadImage = async () => {
@@ -289,7 +393,7 @@ export default function GhibliAI() {
 
               {/* Generate Button */}
               <Button
-                onClick={generateImage}
+                onClick={originalGenerateImage}
                 disabled={isGenerating || !prompt.trim()}
                 className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
