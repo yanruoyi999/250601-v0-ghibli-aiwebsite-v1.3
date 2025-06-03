@@ -39,6 +39,8 @@ export async function POST(request: NextRequest) {
     const ghibliPrompt = buildGhibliPrompt(prompt)
     const mappedSize = getSizeFromAspectRatio(aspectRatio)
     
+    console.log("📏 API请求尺寸:", mappedSize)
+
     const startTime = Date.now()
     
     console.log("📡 发送请求到 ismaque.org API...")
