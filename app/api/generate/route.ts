@@ -19,7 +19,7 @@ const getSizeFromAspectRatio = (aspectRatio: string): "1024x1024" | "1536x1024" 
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, aspectRatio = "1:1", quality = "standard" } = await request.json()
+    const { prompt, aspectRatio = "1:1", quality = "standard", input_image } = await request.json()
     
     if (!prompt) {
       return NextResponse.json({ error: "提示词不能为空" }, { status: 400 })
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     console.log(`🎨 ismaque.org flux-kontext-pro 生成: {
   userPrompt: '${prompt}',
   aspectRatio: '${aspectRatio}',
+  inputImageReceived: !!input_image,
   quality: '${quality}',
   size: '${getSizeFromAspectRatio(aspectRatio)}',
   promptLength: ${prompt.length}
@@ -48,7 +49,8 @@ export async function POST(request: NextRequest) {
       prompt: ghibliPrompt.substring(0, 100) + "...",
       n: 1,
       model: "flux-kontext-pro",
-      aspect_ratio: aspectRatio
+      aspect_ratio: aspectRatio,
+      input_image: input_image ? input_image.substring(0, 50) + "..." : undefined
     })
     
     // 完全按照示例代码的格式，只使用基本参数
@@ -56,12 +58,15 @@ export async function POST(request: NextRequest) {
     myHeaders.append("Authorization", `Bearer ${apiKey}`)
     myHeaders.append("Content-Type", "application/json")
 
-    const raw = JSON.stringify({
+    const rawObject: any = {
       "prompt": ghibliPrompt,
       "n": 1,
       "model": "flux-kontext-pro",
-      "aspect_ratio": aspectRatio
-    })
+      "aspect_ratio": aspectRatio,
+      ...(input_image && {"input_image": input_image})
+    }
+
+    const raw = JSON.stringify(rawObject)
 
     const requestOptions = {
       method: 'POST',
