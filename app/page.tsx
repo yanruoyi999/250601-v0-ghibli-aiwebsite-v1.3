@@ -23,6 +23,7 @@ export default function GhibliAI() {
   const [progress, setProgress] = useState(0)
   const [currentImage, setCurrentImage] = useState<GeneratedImage | null>(null)
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
+  const [referenceImageBase64, setReferenceImageBase64] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const aspectRatios = [
@@ -37,6 +38,18 @@ export default function GhibliAI() {
     const file = event.target.files?.[0]
     if (file) {
       setReferenceImage(file)
+      
+      // Read file as Base64
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setReferenceImageBase64(reader.result as string) // Store Base64 string
+        console.log("✅ Reference image read as Base64")
+      }
+      reader.onerror = (error) => {
+        console.error("❌ Error reading reference image file:", error)
+        setReferenceImageBase64(null) // Reset Base64 state on error
+      }
+      reader.readAsDataURL(file) // Start reading the file
     }
   }
 
@@ -78,6 +91,7 @@ export default function GhibliAI() {
           prompt: prompt.trim(),
           aspectRatio,
           quality,
+          ...(referenceImageBase64 && { input_image: referenceImageBase64 }),
         }),
       })
 
