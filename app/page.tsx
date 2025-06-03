@@ -394,7 +394,7 @@ export default function GhibliAI() {
               {/* Generate Button */}
               <Button
                 onClick={originalGenerateImage}
-                disabled={isGenerating || !prompt.trim()}
+                disabled={isGenerating || (!prompt.trim() && !referenceImageBase64)}
                 className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGenerating ? (
