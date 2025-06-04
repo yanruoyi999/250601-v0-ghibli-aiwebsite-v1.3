@@ -76,7 +76,6 @@ export async function POST(request: NextRequest) {
       "n": 1,
       "model": "flux-kontext-pro",
       "aspect_ratio": aspectRatio,
-      ...(input_image && {"input_image": input_image})
     }
 
     const raw = JSON.stringify(rawObject)
