@@ -40,9 +40,10 @@ export async function POST(request: NextRequest) {
     let apiPrompt = prompt; // 默认使用用户输入的提示词
 
     if (input_image) {
-        // 如果存在 input_image，尝试将其嵌入到 prompt 中
-        // 假设麻雀API在prompt中支持data URL格式
-        apiPrompt = `data:image/png;base64,${input_image} 吉卜力风格的插画, ${prompt}`;
+        // 如果存在 input_image (Data URL 格式，如 data:image/jpeg;base64,...)
+        // 尝试将其嵌入到 prompt 中进行图生图（编辑）
+        // 假设麻雀API在prompt中支持完整的Data URL格式用于图生图
+        apiPrompt = `${input_image} 吉卜力风格的插画, ${prompt}`;
         console.log("使用图生图模式，构造新的 prompt:", apiPrompt.substring(0, 200) + "..."); // 打印部分 prompt
     } else {
         // 如果没有 input_image，则使用文本到图片模式
