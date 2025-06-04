@@ -37,7 +37,19 @@ export async function POST(request: NextRequest) {
   promptLength: ${prompt.length}
 }`)
 
-    const ghibliPrompt = buildGhibliPrompt(prompt)
+    let apiPrompt = prompt; // 默认使用用户输入的提示词
+
+    if (input_image) {
+        // 如果存在 input_image，尝试将其嵌入到 prompt 中
+        // 假设麻雀API在prompt中支持data URL格式
+        apiPrompt = `data:image/png;base64,${input_image} 吉卜力风格的插画, ${prompt}`;
+        console.log("使用图生图模式，构造新的 prompt:", apiPrompt.substring(0, 200) + "..."); // 打印部分 prompt
+    } else {
+        // 如果没有 input_image，则使用文本到图片模式
+        apiPrompt = `${prompt}, 吉卜力风格的插画`; // 确保文本生成也带有吉卜力风格
+        console.log("使用文本到图片模式，构造 prompt:", apiPrompt);
+    }
+
     const mappedSize = getSizeFromAspectRatio(aspectRatio)
     
     console.log("📏 API请求尺寸:", mappedSize)
@@ -46,7 +58,7 @@ export async function POST(request: NextRequest) {
     
     console.log("📡 发送请求到 ismaque.org API...")
     console.log("📄 请求参数:", {
-      prompt: ghibliPrompt.substring(0, 100) + "...",
+      prompt: apiPrompt.substring(0, 100) + "...",
       n: 1,
       model: "flux-kontext-pro",
       aspect_ratio: aspectRatio,
@@ -59,7 +71,7 @@ export async function POST(request: NextRequest) {
     myHeaders.append("Content-Type", "application/json")
 
     const rawObject: any = {
-      "prompt": ghibliPrompt,
+      "prompt": apiPrompt,
       "n": 1,
       "model": "flux-kontext-pro",
       "aspect_ratio": aspectRatio,
@@ -135,7 +147,7 @@ export async function POST(request: NextRequest) {
           totalTime: `${requestTime}ms`,
           model: "flux-kontext-pro",
           aspectRatio: aspectRatio,
-          promptLength: ghibliPrompt.length
+          promptLength: apiPrompt.length
         }
       })
     } else {
