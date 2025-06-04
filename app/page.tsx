@@ -45,35 +45,31 @@ export default function GhibliAI() {
         const base64String = reader.result as string
         setReferenceImageBase64(base64String) // Store Base64 string
         console.log("✅ Reference image read as Base64")
-
-        // If prompt is already filled, trigger generation automatically after reading image
-        if (prompt.trim()) {
-          console.log("Prompt already filled, triggering generation automatically...")
-          // Call generateImage function, passing the base64 string directly
-          // This bypasses the potential state update delay
-          generateImageWithImage(prompt.trim(), aspectRatio, quality, base64String)
-        } else {
-          console.log("Please enter a prompt to generate with the image.")
-        }
+        console.log("请在输入提示词后，点击 '生成图片' 按钮。")
       }
       reader.onerror = (error) => {
         console.error("❌ Error reading reference image file:", error)
         setReferenceImageBase64(null) // Reset Base64 state on error
       }
       reader.readAsDataURL(file) // Start reading the file
+    } else {
+      // 如果取消上传或文件为空，清除图片相关状态
+      setReferenceImage(null);
+      setReferenceImageBase64(null);
+      console.log("Reference image cleared.");
     }
   }
 
   const generateImage = async () => {
-    if (!prompt.trim()) {
-      alert("请输入场景描述")
+    if (!prompt.trim() && !referenceImageBase64) {
+      alert("请输入场景描述或上传参考图片")
       return
     }
 
     setIsGenerating(true)
     setProgress(0)
     
-    console.log("🚀 开始生成图片:", { prompt, aspectRatio, quality })
+    console.log("🚀 开始生成图片:", { prompt, aspectRatio, quality, inputImageAvailable: !!referenceImageBase64 })
 
     // 改进的进度条逻辑 - 更平滑且不超过100%
     let currentProgress = 5
@@ -93,17 +89,26 @@ export default function GhibliAI() {
     try {
       const startTime = Date.now()
       
+      const requestBody: any = { // 创建一个对象来构建请求体
+        prompt: prompt.trim(),
+        aspectRatio,
+        quality,
+      }
+
+      // 如果存在 Base64 图片数据，就添加到请求体对象中
+      if (referenceImageBase64) { // 使用 referenceImageBase64 状态变量
+        requestBody.input_image = referenceImageBase64 // 参数名是 input_image
+        console.log("📄 请求参数包含 input_image") // 添加日志
+      } else {
+        console.log("📄 请求参数不包含 input_image") // 添加日志
+      }
+
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          prompt: prompt.trim(),
-          aspectRatio,
-          quality,
-          ...(referenceImageBase64 && { input_image: referenceImageBase64 }),
-        }),
+        body: JSON.stringify(requestBody), // 将对象转换为 JSON 字符串
       })
 
       const data = await response.json()
@@ -111,6 +116,7 @@ export default function GhibliAI() {
       const generationTime = ((endTime - startTime) / 1000).toFixed(1)
       
       console.log(`⏱️ 生成耗时: ${generationTime}秒`)
+      console.log("📥 后端返回数据:", data); // 打印后端返回的完整数据
 
       if (data.success) {
         // 快速跳到95%然后到100%
@@ -120,8 +126,8 @@ export default function GhibliAI() {
         const newImage: GeneratedImage = {
           id: Date.now().toString(),
           url: data.imageUrl,
-          prompt: data.prompt,
-          aspectRatio,
+          prompt: data.prompt || prompt,
+          aspectRatio: data.aspectRatio || aspectRatio,
           timestamp: Date.now(),
         }
 
@@ -134,10 +140,11 @@ export default function GhibliAI() {
         
         console.log("✅ 图片生成成功!", newImage)
       } else {
+        console.error("❌ 生成失败:", data.error || data.details || "生成失败")
         throw new Error(data.error || data.details || "生成失败")
       }
     } catch (error) {
-      console.error("❌ 生成失败:", error)
+      console.error("❌ 生成失败捕获:", error)
       setProgress(0) // 重置进度条
       
       // 更好的错误提示
@@ -152,104 +159,11 @@ export default function GhibliAI() {
     } finally {
       clearInterval(progressInterval)
       setIsGenerating(false)
-      // 2秒后重置进度条
+      // 延迟2秒后重置进度条，除非又开始了新的生成
       setTimeout(() => {
         if (!isGenerating) setProgress(0)
       }, 2000)
     }
-  }
-
-  // Define a new function to handle generation with image data passed directly
-  const generateImageWithImage = async (currentPrompt: string, currentAspectRatio: string, currentQuality: string, currentInputImage: string | null) => {
-    setIsGenerating(true)
-    setProgress(5) // Start progress
-    
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev < 85) {
-          const increment = Math.random() * 6 + 2
-          const newProgress = Math.min(prev + increment, 85)
-          return newProgress
-        }
-        return prev
-      })
-    }, 300)
-
-    try {
-      const startTime = Date.now()
-      
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: currentPrompt,
-          aspectRatio: currentAspectRatio,
-          quality: currentQuality,
-          ...(currentInputImage && { input_image: currentInputImage }), // Use directly passed image data
-        }),
-      })
-
-      const data = await response.json()
-      const endTime = Date.now()
-      const generationTime = ((endTime - startTime) / 1000).toFixed(1)
-      
-      console.log(`⏱️ 生成耗时: ${generationTime}秒`)
-
-      if (data.success) {
-        setProgress(95)
-        setTimeout(() => setProgress(100), 200)
-        
-        const newImage: GeneratedImage = {
-          id: Date.now().toString(),
-          url: data.imageUrl,
-          prompt: data.prompt, // Assuming API returns the prompt
-          aspectRatio: data.aspectRatio || currentAspectRatio, // Use API aspect ratio if available, else current
-          timestamp: Date.now(),
-        }
-
-        setCurrentImage(newImage)
-
-        // Save to localStorage
-        const savedImages = JSON.parse(localStorage.getItem("ghibli-images") || "[]")
-        savedImages.unshift(newImage)
-        localStorage.setItem("ghibli-images", JSON.stringify(savedImages.slice(0, 20)))
-        
-        console.log("✅ 图片生成成功!", newImage)
-      } else {
-        throw new Error(data.error || data.details || "生成失败")
-      }
-    } catch (error) {
-      console.error("❌ 生成失败:", error)
-      setProgress(0)
-      
-      const errorMessage = error instanceof Error ? error.message : "未知错误"
-      if (errorMessage.includes("API请求失败")) {
-        alert("API服务暂时不可用，请稍后重试")
-      } else if (errorMessage.includes("网络")) {
-        alert("网络连接问题，请检查网络后重试")
-      } else {
-        alert(`图片生成失败: ${errorMessage}`)
-      }
-    } finally {
-      clearInterval(progressInterval)
-      setIsGenerating(false)
-      setTimeout(() => {
-        if (!isGenerating) setProgress(0)
-      }, 2000)
-    }
-  }
-
-  // Modify the original generateImage to call the new function, using state values
-  // This will be called when the button is clicked without image upload or if prompt is filled before image upload
-  const originalGenerateImage = async () => {
-    if (!prompt.trim() && !referenceImageBase64) {
-      alert("请输入场景描述或上传参考图片")
-      return
-    }
-    // Call the new function with current state values
-    generateImageWithImage(prompt.trim(), aspectRatio, quality, referenceImageBase64)
   }
 
   const downloadImage = async () => {
@@ -268,8 +182,19 @@ export default function GhibliAI() {
       document.body.removeChild(a)
     } catch (error) {
       console.error("下载失败:", error)
+      alert("图片下载失败")
     }
   }
+
+  // 清除参考图片
+  const clearReferenceImage = () => {
+    setReferenceImage(null);
+    setReferenceImageBase64(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // 清除文件输入框的值
+    }
+    console.log("Reference image cleared.");
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-slate-800 to-amber-900">
@@ -312,7 +237,7 @@ export default function GhibliAI() {
                   <span className="text-amber-200/70">参考图片（可选）</span>
                 </label>
                 <div
-                  className="border-2 border-dashed border-amber-600/30 rounded-lg p-8 text-center cursor-pointer hover:border-amber-500/50 transition-colors"
+                  className="border-2 border-dashed border-amber-600/30 rounded-lg p-8 text-center cursor-pointer hover:border-amber-500/50 transition-colors relative"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload className="w-12 h-12 text-amber-400 mx-auto mb-3" />
@@ -325,7 +250,24 @@ export default function GhibliAI() {
                     <br />
                     上传图像以转换为吉卜力风格（JPG、PNG、GIF、WebP，最大 30MB）
                   </p>
-                  {referenceImage && <p className="text-amber-400 text-sm mt-2">已选择: {referenceImage.name}</p>}
+                  {referenceImage && (
+                    <div className="mt-2 flex items-center justify-center text-amber-400 text-sm">
+                        <span>已选择: {referenceImage.name}</span>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                clearReferenceImage();
+                            }}
+                            className="ml-2 text-red-400 hover:text-red-500 focus:outline-none"
+                            aria-label="清除参考图片"
+                        >
+                            (清除)
+                        </button>
+                    </div>
+                  )}
+                  {referenceImageBase64 && (
+                      <span className="absolute top-2 right-2 text-xs text-emerald-400">Ready ✅</span>
+                  )}
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
               </div>
@@ -393,7 +335,7 @@ export default function GhibliAI() {
 
               {/* Generate Button */}
               <Button
-                onClick={originalGenerateImage}
+                onClick={generateImage}
                 disabled={isGenerating || (!prompt.trim() && !referenceImageBase64)}
                 className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -492,3 +434,4 @@ export default function GhibliAI() {
     </div>
   )
 }
+
