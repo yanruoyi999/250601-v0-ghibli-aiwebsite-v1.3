@@ -139,6 +139,8 @@ export async function POST(request: NextRequest) {
       "n": 1,
       "model": "flux-kontext-pro",
       "aspect_ratio": aspectRatio,
+      // 添加 webhook_url 参数，测试麻雀 API 是否支持异步回调
+      "webhook_url": "https://your-vercel-deployment.vercel.app/api/webhook-callback", // 请替换为您的实际部署地址并考虑实现这个回调端点
       // 不再发送单独的 input_image 参数
     }
 
