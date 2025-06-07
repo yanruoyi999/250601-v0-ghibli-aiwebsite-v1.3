@@ -18,12 +18,13 @@ interface GeneratedImage {
 export default function GhibliAI() {
   const [prompt, setPrompt] = useState("")
   const [aspectRatio, setAspectRatio] = useState("1:1")
-  const [quality, setQuality] = useState("standard")
   const [isGenerating, setIsGenerating] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [generationStatus, setGenerationStatus] = useState("")
   const [currentImage, setCurrentImage] = useState<GeneratedImage | null>(null)
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
-  const [referenceImageBase64, setReferenceImageBase64] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const aspectRatios = [
@@ -38,38 +39,67 @@ export default function GhibliAI() {
     const file = event.target.files?.[0]
     if (file) {
       setReferenceImage(file)
-      
-      // Read file as Base64
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64String = reader.result as string
-        setReferenceImageBase64(base64String) // Store Base64 string
-        console.log("✅ Reference image read as Base64")
-        console.log("请在输入提示词后，点击 '生成图片' 按钮。")
-      }
-      reader.onerror = (error) => {
-        console.error("❌ Error reading reference image file:", error)
-        setReferenceImageBase64(null) // Reset Base64 state on error
-      }
-      reader.readAsDataURL(file) // Start reading the file
-    } else {
-      // 如果取消上传或文件为空，清除图片相关状态
-      setReferenceImage(null);
-      setReferenceImageBase64(null);
-      console.log("Reference image cleared.");
+      const objectUrl = URL.createObjectURL(file)
+      setPreviewUrl(objectUrl)
+    }
+  }
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const mockEvent = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>;
+      handleFileUpload(mockEvent);
+    }
+  };
+
+  const removeReferenceImage = () => {
+    setReferenceImage(null)
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
     }
   }
 
   const generateImage = async () => {
-    if (!prompt.trim() && !referenceImageBase64) {
-      alert("请输入场景描述或上传参考图片")
+    if (!prompt.trim() && !referenceImage) {
+      alert("请输入场景描述或上传一张参考图片")
       return
     }
 
     setIsGenerating(true)
     setProgress(0)
+    setGenerationStatus("准备开始...")
     
-    console.log("🚀 开始生成图片:", { prompt, aspectRatio, quality, inputImageAvailable: !!referenceImageBase64 })
+    // 如果用户没有输入提示词，但上传了图片，我们给一个默认值
+    const finalPrompt = prompt.trim() || "A beautiful picture";
+
+    console.log("🚀 开始生成图片:", { prompt: finalPrompt, aspectRatio })
 
     // 改进的进度条逻辑 - 更平滑且不超过100%
     let currentProgress = 5
@@ -89,26 +119,31 @@ export default function GhibliAI() {
     try {
       const startTime = Date.now()
       
-      const requestBody: any = { // 创建一个对象来构建请求体
-        prompt: prompt.trim(),
-        aspectRatio,
-        quality,
-      }
+      let requestBody: any = {
+          prompt: finalPrompt,
+          aspectRatio,
+      };
 
-      // 如果存在 Base64 图片数据，就添加到请求体对象中
-      if (referenceImageBase64) { // 使用 referenceImageBase64 状态变量
-        requestBody.input_image = referenceImageBase64 // 参数名是 input_image
-        console.log("📄 请求参数包含 input_image") // 添加日志
-      } else {
-        console.log("📄 请求参数不包含 input_image") // 添加日志
+      if (referenceImage) {
+        setGenerationStatus("正在上传您的图片...")
+        // 将图片转换为Base64
+        const reader = new FileReader();
+        const base64Image = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = (error) => reject(error);
+          reader.readAsDataURL(referenceImage);
+        });
+        requestBody.input_image = base64Image;
+        console.log("🖼️ 已将参考图片转换为Base64并添加到请求中");
       }
-
+      
+      setGenerationStatus("图片已发送，请求AI进行处理...")
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(requestBody), // 将对象转换为 JSON 字符串
+        body: JSON.stringify(requestBody),
       })
 
       const data = await response.json()
@@ -116,9 +151,9 @@ export default function GhibliAI() {
       const generationTime = ((endTime - startTime) / 1000).toFixed(1)
       
       console.log(`⏱️ 生成耗时: ${generationTime}秒`)
-      console.log("📥 后端返回数据:", data); // 打印后端返回的完整数据
 
       if (data.success) {
+        setGenerationStatus("生成成功！")
         // 快速跳到95%然后到100%
         setProgress(95)
         setTimeout(() => setProgress(100), 200)
@@ -126,8 +161,8 @@ export default function GhibliAI() {
         const newImage: GeneratedImage = {
           id: Date.now().toString(),
           url: data.imageUrl,
-          prompt: data.prompt || prompt,
-          aspectRatio: data.aspectRatio || aspectRatio,
+          prompt: data.prompt,
+          aspectRatio,
           timestamp: Date.now(),
         }
 
@@ -140,11 +175,12 @@ export default function GhibliAI() {
         
         console.log("✅ 图片生成成功!", newImage)
       } else {
-        console.error("❌ 生成失败:", data.error || data.details || "生成失败")
+        setGenerationStatus(`生成失败: ${data.message || '未知错误'}`)
         throw new Error(data.error || data.details || "生成失败")
       }
     } catch (error) {
-      console.error("❌ 生成失败捕获:", error)
+      console.error("❌ 生成失败:", error)
+      setGenerationStatus(`生成失败: ${error instanceof Error ? error.message : '请检查网络或联系管理员'}`)
       setProgress(0) // 重置进度条
       
       // 更好的错误提示
@@ -159,10 +195,13 @@ export default function GhibliAI() {
     } finally {
       clearInterval(progressInterval)
       setIsGenerating(false)
-      // 延迟2秒后重置进度条，除非又开始了新的生成
+      // 2秒后重置进度条和状态
       setTimeout(() => {
-        if (!isGenerating) setProgress(0)
-      }, 2000)
+        if (!isGenerating) {
+            setProgress(0);
+            setGenerationStatus("");
+        }
+      }, 3000)
     }
   }
 
@@ -182,19 +221,9 @@ export default function GhibliAI() {
       document.body.removeChild(a)
     } catch (error) {
       console.error("下载失败:", error)
-      alert("图片下载失败")
     }
-  }
 
-  // 清除参考图片
-  const clearReferenceImage = () => {
-    setReferenceImage(null);
-    setReferenceImageBase64(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // 清除文件输入框的值
-    }
-    console.log("Reference image cleared.");
-  };
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-slate-800 to-amber-900">
@@ -236,39 +265,44 @@ export default function GhibliAI() {
                   <br />
                   <span className="text-amber-200/70">参考图片（可选）</span>
                 </label>
-                <div
-                  className="border-2 border-dashed border-amber-600/30 rounded-lg p-8 text-center cursor-pointer hover:border-amber-500/50 transition-colors relative"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-                  <p className="text-amber-200">
-                    Drag and drop or <span className="text-amber-400 underline">browse files</span>
-                  </p>
-                  <p className="text-amber-200/70 text-sm mt-1">拖放或浏览文件</p>
-                  <p className="text-amber-200/50 text-xs mt-2">
-                    Upload an image to transform into Ghibli style (JPG, PNG, GIF, WebP, up to 30MB)
-                    <br />
-                    上传图像以转换为吉卜力风格（JPG、PNG、GIF、WebP，最大 30MB）
-                  </p>
-                  {referenceImage && (
-                    <div className="mt-2 flex items-center justify-center text-amber-400 text-sm">
-                        <span>已选择: {referenceImage.name}</span>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                clearReferenceImage();
-                            }}
-                            className="ml-2 text-red-400 hover:text-red-500 focus:outline-none"
-                            aria-label="清除参考图片"
-                        >
-                            (清除)
-                        </button>
+                {previewUrl ? (
+                  <div className="relative group">
+                    <img src={previewUrl} alt="Preview" className="w-full rounded-lg object-contain max-h-60" />
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={removeReferenceImage}
+                      >
+                        移除图片
+                      </Button>
                     </div>
-                  )}
-                  {referenceImageBase64 && (
-                      <span className="absolute top-2 right-2 text-xs text-emerald-400">Ready ✅</span>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                      isDragging
+                        ? 'border-amber-400 bg-amber-500/10'
+                        : 'border-amber-600/30 hover:border-amber-500/50'
+                    }`}
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  >
+                    <Upload className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                    <p className="text-amber-200">
+                      Drag and drop or <span className="text-amber-400 underline">browse files</span>
+                    </p>
+                    <p className="text-amber-200/70 text-sm mt-1">拖放或浏览文件</p>
+                    <p className="text-amber-200/50 text-xs mt-2">
+                      Upload an image to transform into Ghibli style (JPG, PNG, GIF, WebP, up to 30MB)
+                      <br />
+                      上传图像以转换为吉卜力风格（JPG、PNG、GIF、WebP，最大 30MB）
+                    </p>
+                  </div>
+                )}
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
               </div>
 
@@ -306,129 +340,78 @@ export default function GhibliAI() {
                 </div>
               </div>
 
-              {/* Quality Mode */}
-              <div className="mb-6">
-                <label className="block text-amber-100 text-sm font-medium mb-3">Quality Mode 质量模式</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setQuality("standard")}
-                    className={`p-3 rounded-lg border text-center transition-all ${
-                      quality === "standard"
-                        ? "border-amber-500 bg-amber-500/20 text-amber-100"
-                        : "border-amber-600/20 bg-slate-700/30 text-amber-200 hover:border-amber-500/50"
-                    }`}
-                  >
-                    <div className="text-sm">Standard</div>
-                  </button>
-                  <button
-                    onClick={() => setQuality("hd")}
-                    className={`p-3 rounded-lg border text-center transition-all ${
-                      quality === "hd"
-                        ? "border-amber-500 bg-amber-500/20 text-amber-100"
-                        : "border-amber-600/20 bg-slate-700/30 text-amber-200 hover:border-amber-500/50"
-                    }`}
-                  >
-                    <div className="text-sm">HD</div>
-                  </button>
-                </div>
-              </div>
-
               {/* Generate Button */}
-              <Button
-                onClick={generateImage}
-                disabled={isGenerating || (!prompt.trim() && !referenceImageBase64)}
-                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    生成中...
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    生成图片
+              <div className="mt-8">
+                <Button
+                  onClick={generateImage}
+                  disabled={isGenerating}
+                  className="w-full h-14 text-lg font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl shadow-lg shadow-amber-500/20 transition-all duration-300 transform hover:scale-105 disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed disabled:scale-100"
+                >
+                  {isGenerating ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+                      <span>生成中... ({Math.round(progress)}%)</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-6 h-6" />
+                      <span>生成图片</span>
+                    </div>
+                  )}
+                </Button>
+                {isGenerating && (
+                  <div className="w-full bg-slate-700 rounded-full h-2.5 mt-4 overflow-hidden">
+                    <div className="bg-amber-500 h-2.5 rounded-full" style={{ width: `${progress}%`, transition: 'width 0.5s ease-in-out' }}></div>
                   </div>
                 )}
-              </Button>
-
-              {/* Progress Bar */}
-              {isGenerating && (
-                <div className="mt-4">
-                  <div className="flex justify-between text-sm text-amber-200 mb-2">
-                    <span>生成进度</span>
-                    <span>{Math.round(progress)}%</span>
-                  </div>
-                  <div className="w-full bg-slate-700 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-amber-500 to-orange-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+                {generationStatus && (
+                  <p className="text-center text-amber-200/80 text-sm mt-3 animate-pulse">
+                    {generationStatus}
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
-          {/* Output Panel */}
-          <Card className="bg-slate-800/50 border-amber-600/20 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-amber-100 flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5" />
-                  Output 输出
-                </h2>
-                {!currentImage && (
-                  <div className="text-amber-400 text-sm bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
-                    ✨ Upgrade to Pro for faster generation and advanced features
-                  </div>
-                )}
+          {/* Result Image Display */}
+          <div className="bg-slate-900/50 border border-amber-600/20 rounded-2xl flex flex-col items-center justify-start p-4 min-h-[50vh] lg:min-h-full">
+            {isGenerating ? (
+              <div className="flex-grow flex items-center justify-center text-center text-amber-200">
+                <div>
+                  <div className="w-10 h-10 border-4 border-t-transparent border-amber-500 rounded-full animate-spin mb-4 mx-auto"></div>
+                  <p className="text-lg">正在为您生成艺术作品...</p>
+                  <p className="text-sm text-amber-200/70">{generationStatus}</p>
+                </div>
               </div>
-
-              <div className="aspect-square bg-slate-700/30 rounded-lg border border-amber-600/20 flex items-center justify-center overflow-hidden">
-                {currentImage ? (
+            ) : currentImage ? (
+              <div className="w-full h-full flex flex-col gap-4">
+                <div className="flex-grow flex items-center justify-center min-h-0">
                   <img
-                    src={currentImage.url || "/placeholder.svg"}
-                    alt="Generated Ghibli style image"
-                    className="w-full h-full object-cover"
+                    src={currentImage.url}
+                    alt={currentImage.prompt || 'Generated Ghibli style image'}
+                    className="w-full h-auto object-contain rounded-lg max-h-[70vh]"
                   />
-                ) : (
-                  <div className="text-center text-amber-200/50">
-                    <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p>生成的图片将在这里显示</p>
-                    <p className="text-sm mt-1">Generated image will appear here</p>
-                  </div>
-                )}
-              </div>
-
-              {currentImage && (
-                <div className="mt-6">
+                </div>
+                <div className="flex-shrink-0 w-full">
                   <Button
                     onClick={downloadImage}
-                    className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium py-3 rounded-lg transition-all"
+                    className="w-full h-14 text-lg font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl shadow-lg shadow-amber-500/20 transition-all duration-300"
                   >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Image 下载图片
+                    <Download className="w-6 h-6 mr-2" />
+                    下载图片
                   </Button>
-
-                  <div className="mt-4 p-3 bg-slate-700/30 rounded-lg border border-amber-600/20">
-                    <p className="text-amber-200/70 text-xs">
-                      <strong>提示词:</strong> {currentImage.prompt}
-                    </p>
-                    <p className="text-amber-200/50 text-xs mt-1">
-                      比例: {currentImage.aspectRatio} | 生成时间: {new Date(currentImage.timestamp).toLocaleString()}
-                    </p>
-                  </div>
                 </div>
-              )}
-
-              {progress === 100 && currentImage && (
-                <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                  <p className="text-emerald-400 text-sm text-center">✅ 生成完成！Generation completed!</p>
+              </div>
+            ) : (
+              <div className="flex-grow flex items-center justify-center text-center text-amber-300/50">
+                <div>
+                  <ImageIcon size={64} className="mx-auto mb-4" />
+                  <h3 className="text-xl font-medium">生成的图片将在这里显示</h3>
+                  <p className="text-base">Generated image will appear here</p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
