@@ -256,7 +256,12 @@ export async function POST(request: NextRequest) {
 
       console.log(`🎨 ismaque.org flux-kontext-pro 文生图: {\n  userPrompt: '${prompt}',\n  aspectRatio: '${aspectRatio}',\n  quality: '${quality}',\n  size: '${getSizeFromAspectRatio(aspectRatio)}',\n  promptLength: ${prompt.length}\n}`);
 
-      const apiPrompt = `${prompt}, 吉卜力风格的插画`; // 确保文本生成也带有吉卜力风格
+      // 优化提示词，确保有足够的描述内容
+      let enhancedPrompt = prompt.trim();
+      if (enhancedPrompt === "A beautiful picture" || enhancedPrompt.length < 10) {
+        enhancedPrompt = "A beautiful magical landscape with rolling hills and ancient trees, peaceful and serene atmosphere";
+      }
+      const apiPrompt = `${enhancedPrompt}, Studio Ghibli animation style, hand-drawn illustration, watercolor background, peaceful mood`;
       const mappedSize = getSizeFromAspectRatio(aspectRatio)
 
       console.log("📏 API请求尺寸:", mappedSize)
@@ -271,11 +276,17 @@ export async function POST(request: NextRequest) {
       myHeaders.append("Authorization", `Bearer ${ismaqueApiKey}`)
       myHeaders.append("Content-Type", "application/json")
 
+      // 确保aspect_ratio格式正确
+      const validAspectRatios = ["1:1", "3:4", "4:3", "16:9", "9:16"];
+      const finalAspectRatio = validAspectRatios.includes(aspectRatio) ? aspectRatio : "1:1";
+      
+      console.log(`📐 使用aspect_ratio: ${finalAspectRatio} (原始: ${aspectRatio})`);
+
       const rawObject: any = {
         "prompt": apiPrompt,
         "n": 1,
         "model": "flux-kontext-pro",
-        "aspect_ratio": aspectRatio,
+        "aspect_ratio": finalAspectRatio,
         "webhook_url": "https://250601-v0-ghibli-aiwebsite-v1-3.vercel.app/api/webhook-callback",
       }
 
@@ -298,17 +309,36 @@ export async function POST(request: NextRequest) {
 
       if (!response.ok) {
         console.error("❌ ismaque.org API错误:", response.status, responseText)
+        
+        let errorMessage = `API请求失败: ${response.status}`;
+        
         if (response.status === 400) {
           try {
             const errorJson = JSON.parse(responseText);
             if (errorJson && errorJson.error && errorJson.error.message) {
-              throw new Error(`API请求被拒绝: ${errorJson.error.message}`);
+              errorMessage = `API请求被拒绝: ${errorJson.error.message}`;
+            } else if (errorJson && errorJson.message) {
+              errorMessage = `API验证错误: ${errorJson.message}`;
             }
           } catch (parseError) {
+            console.error("❌ 解析错误响应失败:", parseError);
           }
-          throw new Error("请求被安全系统拒绝，请尝试调整提示词内容");
+          
+          // 检查是否是格式错误
+          if (responseText.includes("string did not match") || responseText.includes("pattern")) {
+            errorMessage = "参数格式错误，请检查输入内容";
+          } else if (responseText.includes("safety") || responseText.includes("content")) {
+            errorMessage = "内容被安全系统拒绝，请尝试调整提示词";
+          }
+        } else if (response.status === 401) {
+          errorMessage = "API密钥无效或已过期";
+        } else if (response.status === 429) {
+          errorMessage = "请求过于频繁，请稍后重试";
+        } else if (response.status >= 500) {
+          errorMessage = "服务器暂时不可用，请稍后重试";
         }
-        throw new Error(`API请求失败: ${response.status} - ${responseText}`)
+        
+        throw new Error(errorMessage)
       }
 
       let result
