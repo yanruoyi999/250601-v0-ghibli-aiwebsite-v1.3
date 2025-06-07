@@ -256,12 +256,16 @@ export async function POST(request: NextRequest) {
 
       console.log(`🎨 ismaque.org flux-kontext-pro 文生图: {\n  userPrompt: '${prompt}',\n  aspectRatio: '${aspectRatio}',\n  quality: '${quality}',\n  size: '${getSizeFromAspectRatio(aspectRatio)}',\n  promptLength: ${prompt.length}\n}`);
 
-      // 优化提示词，确保有足够的描述内容
+      // 优化提示词，确保格式正确且内容安全
       let enhancedPrompt = prompt.trim();
-      if (enhancedPrompt === "A beautiful picture" || enhancedPrompt.length < 10) {
-        enhancedPrompt = "A beautiful magical landscape with rolling hills and ancient trees, peaceful and serene atmosphere";
+      if (!enhancedPrompt || enhancedPrompt === "A beautiful picture" || enhancedPrompt.length < 5) {
+        enhancedPrompt = "beautiful landscape with trees and mountains";
       }
-      const apiPrompt = `${enhancedPrompt}, Studio Ghibli animation style, hand-drawn illustration, watercolor background, peaceful mood`;
+      
+      // 清理提示词，移除可能引起格式错误的特殊字符
+      enhancedPrompt = enhancedPrompt.replace(/[^\w\s,.-]/g, '').trim();
+      
+      const apiPrompt = `${enhancedPrompt}, Studio Ghibli style animation, hand drawn illustration`;
       const mappedSize = getSizeFromAspectRatio(aspectRatio)
 
       console.log("📏 API请求尺寸:", mappedSize)
@@ -276,9 +280,15 @@ export async function POST(request: NextRequest) {
       myHeaders.append("Authorization", `Bearer ${ismaqueApiKey}`)
       myHeaders.append("Content-Type", "application/json")
 
-      // 确保aspect_ratio格式正确
-      const validAspectRatios = ["1:1", "3:4", "4:3", "16:9", "9:16"];
-      const finalAspectRatio = validAspectRatios.includes(aspectRatio) ? aspectRatio : "1:1";
+      // 确保aspect_ratio格式正确，使用数字格式而不是比例格式
+      const aspectRatioMap: Record<string, string> = {
+        "1:1": "1:1",
+        "4:3": "4:3", 
+        "3:4": "3:4",
+        "16:9": "16:9",
+        "9:16": "9:16"
+      };
+      const finalAspectRatio = aspectRatioMap[aspectRatio] || "1:1";
       
       console.log(`📐 使用aspect_ratio: ${finalAspectRatio} (原始: ${aspectRatio})`);
 

@@ -116,8 +116,8 @@ export default function GhibliAI() {
     setProgress(0)
     setGenerationStatus("准备开始...")
     
-    // 如果用户没有输入提示词，但上传了图片，我们给一个更详细的默认值
-    const finalPrompt = prompt.trim() || "A beautiful magical landscape with rolling hills, ancient trees, and peaceful atmosphere";
+    // 如果用户没有输入提示词，但上传了图片，我们给一个简单安全的默认值
+    const finalPrompt = prompt.trim() || "beautiful landscape with trees and mountains";
 
     console.log("🚀 开始生成图片:", { prompt: finalPrompt, aspectRatio })
 
