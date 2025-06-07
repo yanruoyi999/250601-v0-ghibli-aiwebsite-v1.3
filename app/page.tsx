@@ -2,10 +2,10 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Upload, Download, Sparkles, ImageIcon } from "lucide-react"
+import { Upload, Download, Sparkles, ImageIcon, Wand2 } from "lucide-react"
 
 interface GeneratedImage {
   id: string
@@ -25,6 +25,7 @@ export default function GhibliAI() {
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [currentPromptIndex, setCurrentPromptIndex] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const aspectRatios = [
@@ -34,6 +35,21 @@ export default function GhibliAI() {
     { value: "16:9", label: "16:9", icon: "▬" },
     { value: "9:16", label: "9:16", icon: "▮" },
   ]
+
+  const examplePrompts = [
+    "A peaceful forest village with floating islands in the sky, Studio Ghibli style",
+    "A magical train station in the clouds with steam locomotives, whimsical and colorful",
+    "A cozy cottage by a crystal clear lake surrounded by ancient trees and mystical creatures",
+    "A bustling market street in a steampunk city with airships flying overhead",
+    "A serene garden with glowing flowers and friendly spirits, painted in watercolor style"
+  ]
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentPromptIndex((prev) => (prev + 1) % examplePrompts.length)
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -86,6 +102,10 @@ export default function GhibliAI() {
     }
   }
 
+  const handlePromptClick = (selectedPrompt: string) => {
+    setPrompt(selectedPrompt)
+  }
+
   const generateImage = async () => {
     if (!prompt.trim() && !referenceImage) {
       alert("请输入场景描述或上传一张参考图片")
@@ -136,7 +156,7 @@ export default function GhibliAI() {
         requestBody.input_image = base64Image;
         console.log("🖼️ 已将参考图片转换为Base64并添加到请求中");
       }
-      
+
       setGenerationStatus("图片已发送，请求AI进行处理...")
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -151,6 +171,7 @@ export default function GhibliAI() {
       const generationTime = ((endTime - startTime) / 1000).toFixed(1)
       
       console.log(`⏱️ 生成耗时: ${generationTime}秒`)
+      console.log("📥 后端返回数据:", data); // 打印后端返回的完整数据
 
       if (data.success) {
         setGenerationStatus("生成成功！")
@@ -167,14 +188,15 @@ export default function GhibliAI() {
         }
 
         setCurrentImage(newImage)
-
-        // 保存到 localStorage
-        const savedImages = JSON.parse(localStorage.getItem("ghibli-images") || "[]")
-        savedImages.unshift(newImage)
-        localStorage.setItem("ghibli-images", JSON.stringify(savedImages.slice(0, 20)))
+        
+        // 显示成功消息
+        setTimeout(() => {
+          setGenerationStatus("✅ 生成完成！")
+        }, 500)
         
         console.log("✅ 图片生成成功!", newImage)
       } else {
+        console.error("❌ 生成失败:", data.error || data.details || "生成失败")
         setGenerationStatus(`生成失败: ${data.message || '未知错误'}`)
         throw new Error(data.error || data.details || "生成失败")
       }
@@ -184,14 +206,13 @@ export default function GhibliAI() {
       setProgress(0) // 重置进度条
       
       // 更好的错误提示
-      const errorMessage = error instanceof Error ? error.message : "未知错误"
-      if (errorMessage.includes("API请求失败")) {
-        alert("API服务暂时不可用，请稍后重试")
-      } else if (errorMessage.includes("网络")) {
-        alert("网络连接问题，请检查网络后重试")
-      } else {
-        alert(`图片生成失败: ${errorMessage}`)
-      }
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : typeof error === 'string' 
+          ? error 
+          : '生成失败，请稍后重试'
+      
+      setTimeout(() => setGenerationStatus(errorMessage), 1000)
     } finally {
       clearInterval(progressInterval)
       setIsGenerating(false)
@@ -206,15 +227,17 @@ export default function GhibliAI() {
   }
 
   const downloadImage = async () => {
-    if (!currentImage) return
-
+    if (!currentImage?.url) return
+    
     try {
       const response = await fetch(currentImage.url)
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
+      
       const a = document.createElement("a")
+      a.style.display = "none"
       a.href = url
-      a.download = `ghibli-${currentImage.id}.png`
+      a.download = `ghibli-ai-${currentImage.id}.png`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -222,27 +245,22 @@ export default function GhibliAI() {
     } catch (error) {
       console.error("下载失败:", error)
     }
-
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-slate-800 to-amber-900">
-      {/* Header */}
-      <header className="border-b border-amber-600/20 bg-slate-900/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-amber-100">Ghibli AI</h1>
-              <p className="text-sm text-amber-200/70">吉卜力风格AI图片生成器</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <div className="container mx-auto px-4 py-8">
+        <header className="text-center mb-12">
+          <h1 className="text-4xl md:text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-emerald-400 mb-4">
+            Ghibli AI
+          </h1>
+          <p className="text-amber-200/80 text-lg md:text-xl max-w-2xl mx-auto">
+            将您的想象转化为宫崎骏风格的艺术作品
+            <br />
+            <span className="text-base">Transform your ideas into Ghibli-style masterpieces</span>
+          </p>
+        </header>
+
         <div className="grid lg:grid-cols-2 gap-8 max-w-7xl mx-auto">
           {/* Input Settings Panel */}
           <Card className="bg-slate-800/50 border-amber-600/20 backdrop-blur-sm">
@@ -267,8 +285,8 @@ export default function GhibliAI() {
                 </label>
                 {previewUrl ? (
                   <div className="relative group">
-                    <img src={previewUrl} alt="Preview" className="w-full rounded-lg object-contain max-h-60" />
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <img src={previewUrl} alt="Preview" className="w-full rounded-2xl object-contain max-h-60" />
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
                       <Button
                         variant="destructive"
                         size="sm"
@@ -280,7 +298,7 @@ export default function GhibliAI() {
                   </div>
                 ) : (
                   <div
-                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                    className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
                       isDragging
                         ? 'border-amber-400 bg-amber-500/10'
                         : 'border-amber-600/30 hover:border-amber-500/50'
@@ -313,10 +331,27 @@ export default function GhibliAI() {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the image you want to generate..."
-                  className="w-full h-32 px-4 py-3 bg-slate-700/50 border border-amber-600/20 rounded-lg text-amber-100 placeholder-amber-200/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 resize-none"
+                  className="w-full h-32 px-4 py-3 bg-slate-700/50 border border-amber-600/20 rounded-2xl text-amber-100 placeholder-amber-200/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 resize-none"
                   maxLength={500}
                 />
                 <div className="text-right text-amber-200/50 text-xs mt-1">{prompt.length}/500</div>
+                
+                {/* Example Prompts */}
+                <div className="mt-4 p-4 bg-slate-700/30 border border-amber-600/20 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Wand2 className="w-4 h-4 text-amber-400" />
+                    <span className="text-amber-200 text-sm font-medium">灵感提示词 / Example Prompts</span>
+                  </div>
+                  <div 
+                    className="cursor-pointer p-3 bg-slate-800/50 border border-amber-600/20 rounded-2xl hover:border-amber-500/50 transition-all duration-300 hover:bg-slate-700/50"
+                    onClick={() => handlePromptClick(examplePrompts[currentPromptIndex])}
+                  >
+                    <p className="text-amber-100 text-sm leading-relaxed">
+                      {examplePrompts[currentPromptIndex]}
+                    </p>
+                    <p className="text-amber-400/70 text-xs mt-1">点击使用此提示词 / Click to use this prompt</p>
+                  </div>
+                </div>
               </div>
 
               {/* Aspect Ratio */}
@@ -327,25 +362,24 @@ export default function GhibliAI() {
                     <button
                       key={ratio.value}
                       onClick={() => setAspectRatio(ratio.value)}
-                      className={`p-3 rounded-lg border text-center transition-all ${
+                      className={`p-3 rounded-2xl border text-center transition-all ${
                         aspectRatio === ratio.value
                           ? "border-amber-500 bg-amber-500/20 text-amber-100"
                           : "border-amber-600/20 bg-slate-700/30 text-amber-200 hover:border-amber-500/50"
                       }`}
                     >
-                      <div className="text-lg mb-1">{ratio.icon}</div>
+                      <div className="text-2xl mb-1">{ratio.icon}</div>
                       <div className="text-xs">{ratio.label}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Generate Button */}
               <div className="mt-8">
                 <Button
                   onClick={generateImage}
                   disabled={isGenerating}
-                  className="w-full h-14 text-lg font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl shadow-lg shadow-amber-500/20 transition-all duration-300 transform hover:scale-105 disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed disabled:scale-100"
+                  className="w-full h-14 text-lg font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-2xl shadow-lg shadow-amber-500/20 transition-all duration-300 transform hover:scale-105 disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed disabled:scale-100"
                 >
                   {isGenerating ? (
                     <div className="flex items-center gap-3">
@@ -360,8 +394,8 @@ export default function GhibliAI() {
                   )}
                 </Button>
                 {isGenerating && (
-                  <div className="w-full bg-slate-700 rounded-full h-2.5 mt-4 overflow-hidden">
-                    <div className="bg-amber-500 h-2.5 rounded-full" style={{ width: `${progress}%`, transition: 'width 0.5s ease-in-out' }}></div>
+                  <div className="w-full bg-slate-700 rounded-2xl h-2.5 mt-4 overflow-hidden">
+                    <div className="bg-amber-500 h-2.5 rounded-2xl" style={{ width: `${progress}%`, transition: 'width 0.5s ease-in-out' }}></div>
                   </div>
                 )}
                 {generationStatus && (
@@ -374,47 +408,49 @@ export default function GhibliAI() {
           </Card>
 
           {/* Result Image Display */}
-          <div className="bg-slate-900/50 border border-amber-600/20 rounded-2xl flex flex-col items-center justify-start p-4 min-h-[50vh] lg:min-h-full">
-            {isGenerating ? (
-              <div className="flex-grow flex items-center justify-center text-center text-amber-200">
-                <div>
-                  <div className="w-10 h-10 border-4 border-t-transparent border-amber-500 rounded-full animate-spin mb-4 mx-auto"></div>
-                  <p className="text-lg">正在为您生成艺术作品...</p>
-                  <p className="text-sm text-amber-200/70">{generationStatus}</p>
-                </div>
-              </div>
-            ) : currentImage ? (
-              <div className="w-full h-full flex flex-col gap-4">
-                <div className="flex-grow flex items-center justify-center min-h-0">
+          <Card className="bg-slate-800/50 border-amber-600/20 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <h2 className="text-xl font-semibold text-amber-100 mb-6 flex items-center gap-2">
+                <ImageIcon className="w-5 h-5" />
+                Output 输出
+              </h2>
+
+              <div className="bg-slate-900/50 border border-amber-600/20 rounded-2xl flex flex-col items-center justify-center p-6 min-h-[400px] mb-8">
+                {isGenerating ? (
+                  <div className="flex flex-col items-center justify-center text-center text-amber-200">
+                    <div className="w-10 h-10 border-4 border-t-transparent border-amber-500 rounded-full animate-spin mb-4"></div>
+                    <p className="text-lg">正在为您生成艺术作品...</p>
+                    <p className="text-sm text-amber-200/70">{generationStatus}</p>
+                  </div>
+                ) : currentImage ? (
                   <img
                     src={currentImage.url}
                     alt={currentImage.prompt || 'Generated Ghibli style image'}
-                    className="w-full h-auto object-contain rounded-lg max-h-[70vh]"
+                    className="w-full h-auto object-contain rounded-2xl max-h-[400px]"
                   />
-                </div>
-                <div className="flex-shrink-0 w-full">
-                  <Button
-                    onClick={downloadImage}
-                    className="w-full h-14 text-lg font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl shadow-lg shadow-amber-500/20 transition-all duration-300"
-                  >
-                    <Download className="w-6 h-6 mr-2" />
-                    下载图片
-                  </Button>
-                </div>
+                ) : (
+                  <div className="text-center text-amber-300/50">
+                    <ImageIcon size={64} className="mx-auto mb-4" />
+                    <h3 className="text-xl font-medium">生成的图片将在这里显示</h3>
+                    <p className="text-base">Generated image will appear here</p>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex-grow flex items-center justify-center text-center text-amber-300/50">
-                <div>
-                  <ImageIcon size={64} className="mx-auto mb-4" />
-                  <h3 className="text-xl font-medium">生成的图片将在这里显示</h3>
-                  <p className="text-base">Generated image will appear here</p>
-                </div>
+
+              <div className="mt-8">
+                <Button
+                  onClick={downloadImage}
+                  disabled={!currentImage}
+                  className="w-full h-14 text-lg font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-2xl shadow-lg shadow-amber-500/20 transition-all duration-300 disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed"
+                >
+                  <Download className="w-6 h-6 mr-2" />
+                  下载图片
+                </Button>
               </div>
-            )}
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
   )
-}
-
+} 
