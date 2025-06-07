@@ -270,16 +270,6 @@ export async function POST(request: NextRequest) {
 
       console.log("📏 API请求尺寸:", mappedSize)
 
-      console.log("📡 发送请求到 ismaque.org API...");
-      console.log("📄 请求参数:");
-      console.log("  model:", process.env.ISMAQUE_MODEL || "flux-kontext-pro");
-      console.log("  prompt (partial):", apiPrompt.substring(0, 200) + "...");
-      console.log("  aspect_ratio:", aspectRatio);
-
-      const myHeaders = new Headers()
-      myHeaders.append("Authorization", `Bearer ${ismaqueApiKey}`)
-      myHeaders.append("Content-Type", "application/json")
-
       // 确保aspect_ratio格式正确，使用数字格式而不是比例格式
       const aspectRatioMap: Record<string, string> = {
         "1:1": "1:1",
@@ -290,7 +280,18 @@ export async function POST(request: NextRequest) {
       };
       const finalAspectRatio = aspectRatioMap[aspectRatio] || "1:1";
       
+      console.log("📡 发送请求到 ismaque.org API...");
+      console.log("📄 请求参数:");
+      console.log("  model:", "flux-kontext-pro");
+      console.log("  prompt (partial):", apiPrompt.substring(0, 100) + "...");
+      console.log("  aspect_ratio:", finalAspectRatio);
+      console.log("  prompt长度:", apiPrompt.length);
+      console.log("  API密钥存在:", !!ismaqueApiKey);
       console.log(`📐 使用aspect_ratio: ${finalAspectRatio} (原始: ${aspectRatio})`);
+
+      const myHeaders = new Headers()
+      myHeaders.append("Authorization", `Bearer ${ismaqueApiKey}`)
+      myHeaders.append("Content-Type", "application/json")
 
       const rawObject: any = {
         "prompt": apiPrompt,
@@ -353,11 +354,34 @@ export async function POST(request: NextRequest) {
 
       let result
       try {
+        // 先检查响应是否为空或者是HTML
+        if (!responseText || responseText.trim().length === 0) {
+          throw new Error("API返回空响应")
+        }
+        
+        // 检查是否是HTML响应（通常是错误页面）
+        if (responseText.trim().startsWith('<') || responseText.includes('<!DOCTYPE')) {
+          throw new Error("API返回了HTML页面而非JSON，可能是服务器错误")
+        }
+        
+        // 检查是否包含"Request"关键字（可能是请求限制信息）
+        if (responseText.includes("Request") && !responseText.startsWith('{')) {
+          throw new Error(`API请求被限制: ${responseText.substring(0, 100)}`)
+        }
+        
         result = JSON.parse(responseText)
       } catch (parseError) {
         console.error("❌ JSON解析失败:", parseError)
-        console.error("📄 原始响应:", responseText)
-        throw new Error(`API返回非JSON格式数据: ${responseText.substring(0, 100)}...`)
+        console.error("📄 原始响应:", responseText.substring(0, 200))
+        
+        // 提供更友好的错误信息
+        if (responseText.includes("rate limit") || responseText.includes("Request")) {
+          throw new Error("请求过于频繁，请稍后重试")
+        } else if (responseText.includes("unauthorized") || responseText.includes("401")) {
+          throw new Error("API密钥无效，请检查配置")
+        } else {
+          throw new Error(`API返回格式错误，请稍后重试`)
+        }
       }
 
       console.log("📊 解析后的结果:", JSON.stringify(result, null, 2))
