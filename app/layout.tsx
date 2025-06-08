@@ -17,6 +17,7 @@ export default function RootLayout({
     <html lang="en">
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       <body>
         <Script
           strategy="beforeInteractive"
@@ -27,6 +28,8 @@ export default function RootLayout({
         {children}
       </body>
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
       <Script
