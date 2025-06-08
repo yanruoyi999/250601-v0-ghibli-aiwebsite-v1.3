@@ -15,12 +15,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <Script
-        strategy="beforeInteractive"
-        src="https://plausible.io/js/script.js"
-        data-domain="ghibliart.top"
-      />
-      <body>{children}</body>
+      <body>
+        <Script
+          strategy="beforeInteractive"
+          src="https://plausible.io/js/script.js"
+          data-domain="ghibliart.top"
+          async
+        />
+        {children}
+      </body>
     </html>
   )
 }
