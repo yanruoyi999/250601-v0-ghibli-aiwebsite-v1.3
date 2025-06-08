@@ -37,11 +37,11 @@ export default function GhibliAI() {
   ]
 
   const examplePrompts = [
-    "A peaceful forest village with floating islands in the sky, Studio Ghibli style",
-    "A magical train station in the clouds with steam locomotives, whimsical and colorful",
-    "A cozy cottage by a crystal clear lake surrounded by ancient trees and mystical creatures",
-    "A bustling market street in a steampunk city with airships flying overhead",
-    "A serene garden with glowing flowers and friendly spirits, painted in watercolor style"
+    "A young girl in simple dress walking on a quiet path, soft spring breeze, warm afternoon light",
+    "A small wooden house by the sea, gentle waves, seagulls in the distance, peaceful coastal scene",
+    "A person sitting under a large tree reading a book, dappled sunlight through leaves, tranquil moment",
+    "A traditional Japanese village street, old buildings, soft morning light, quiet everyday life",
+    "A cozy indoor scene with warm lighting, simple furniture, plants by the window, homely atmosphere"
   ]
 
   useEffect(() => {
@@ -116,8 +116,8 @@ export default function GhibliAI() {
     setProgress(0)
     setGenerationStatus("准备开始...")
     
-    // 如果用户没有输入提示词，但上传了图片，我们给一个简单安全的默认值
-    const finalPrompt = prompt.trim() || "beautiful landscape with trees and mountains";
+    // 如果用户没有输入提示词，但上传了图片，我们给一个吉卜力风格的默认值
+    const finalPrompt = prompt.trim() || "a peaceful countryside scene with rolling hills and gentle breeze";
 
     console.log("🚀 开始生成图片:", { prompt: finalPrompt, aspectRatio })
 
@@ -188,7 +188,7 @@ export default function GhibliAI() {
         }
 
         setCurrentImage(newImage)
-        
+
         // 显示成功消息
         setTimeout(() => {
           setGenerationStatus("✅ 生成完成！")
@@ -228,7 +228,7 @@ export default function GhibliAI() {
 
   const downloadImage = async () => {
     if (!currentImage?.url) return
-    
+
     try {
       const response = await fetch(currentImage.url)
       const blob = await response.blob()
@@ -303,23 +303,23 @@ export default function GhibliAI() {
                         ? 'border-amber-400 bg-amber-500/10'
                         : 'border-amber-600/30 hover:border-amber-500/50'
                     }`}
-                    onClick={() => fileInputRef.current?.click()}
+                  onClick={() => fileInputRef.current?.click()}
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
-                  >
-                    <Upload className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-                    <p className="text-amber-200">
-                      Drag and drop or <span className="text-amber-400 underline">browse files</span>
-                    </p>
-                    <p className="text-amber-200/70 text-sm mt-1">拖放或浏览文件</p>
-                    <p className="text-amber-200/50 text-xs mt-2">
-                      Upload an image to transform into Ghibli style (JPG, PNG, GIF, WebP, up to 30MB)
-                      <br />
-                      上传图像以转换为吉卜力风格（JPG、PNG、GIF、WebP，最大 30MB）
-                    </p>
-                  </div>
+                >
+                  <Upload className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                  <p className="text-amber-200">
+                    Drag and drop or <span className="text-amber-400 underline">browse files</span>
+                  </p>
+                  <p className="text-amber-200/70 text-sm mt-1">拖放或浏览文件</p>
+                  <p className="text-amber-200/50 text-xs mt-2">
+                    Upload an image to transform into Ghibli style (JPG, PNG, GIF, WebP, up to 30MB)
+                    <br />
+                    上传图像以转换为吉卜力风格（JPG、PNG、GIF、WebP，最大 30MB）
+                  </p>
+                </div>
                 )}
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
               </div>
@@ -376,24 +376,24 @@ export default function GhibliAI() {
               </div>
 
               <div className="mt-8">
-                <Button
-                  onClick={generateImage}
+              <Button
+                onClick={generateImage}
                   disabled={isGenerating}
                   className="w-full h-14 text-lg font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-2xl shadow-lg shadow-amber-500/20 transition-all duration-300 transform hover:scale-105 disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed disabled:scale-100"
-                >
-                  {isGenerating ? (
+              >
+                {isGenerating ? (
                     <div className="flex items-center gap-3">
                       <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
                       <span>生成中... ({Math.round(progress)}%)</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
                       <Sparkles className="w-6 h-6" />
                       <span>生成图片</span>
-                    </div>
-                  )}
-                </Button>
-                {isGenerating && (
+                  </div>
+                )}
+              </Button>
+              {isGenerating && (
                   <div className="w-full bg-slate-700 rounded-2xl h-2.5 mt-4 overflow-hidden">
                     <div className="bg-amber-500 h-2.5 rounded-2xl" style={{ width: `${progress}%`, transition: 'width 0.5s ease-in-out' }}></div>
                   </div>
@@ -403,7 +403,7 @@ export default function GhibliAI() {
                     {generationStatus}
                   </p>
                 )}
-              </div>
+                </div>
             </CardContent>
           </Card>
 
@@ -411,9 +411,9 @@ export default function GhibliAI() {
           <Card className="bg-slate-800/50 border-amber-600/20 backdrop-blur-sm">
             <CardContent className="p-6">
               <h2 className="text-xl font-semibold text-amber-100 mb-6 flex items-center gap-2">
-                <ImageIcon className="w-5 h-5" />
-                Output 输出
-              </h2>
+                  <ImageIcon className="w-5 h-5" />
+                  Output 输出
+                </h2>
 
               <div className="bg-slate-900/50 border border-amber-600/20 rounded-2xl flex flex-col items-center justify-center p-6 min-h-[400px] mb-8">
                 {isGenerating ? (
@@ -438,19 +438,19 @@ export default function GhibliAI() {
               </div>
 
               <div className="mt-8">
-                <Button
-                  onClick={downloadImage}
+                  <Button
+                    onClick={downloadImage}
                   disabled={!currentImage}
                   className="w-full h-14 text-lg font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-2xl shadow-lg shadow-amber-500/20 transition-all duration-300 disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed"
-                >
+                  >
                   <Download className="w-6 h-6 mr-2" />
                   下载图片
-                </Button>
-              </div>
+                  </Button>
+                </div>
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
   )
-} 
+}

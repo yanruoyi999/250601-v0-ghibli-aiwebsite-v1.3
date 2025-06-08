@@ -2,6 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { v4 as uuidv4 } from 'uuid';
 
+// 全局、统一、精简且高效的吉卜力风格指令
+const ghibliMasterStyle = "Studio Ghibli anime style, soft watercolor background, warm and muted color palette, gentle thin outlines, peaceful atmosphere, hand-drawn aesthetic with a vintage paper texture.";
+
 // 构建吉卜力风格提示词 - 简化版，避免触发安全过滤
 const buildGhibliPrompt = (userPrompt: string) => {
   // 在这个版本的代码中，我们直接在主要逻辑中构造 prompt，所以这个函数暂时没有被直接使用
@@ -112,10 +115,12 @@ export async function POST(request: NextRequest) {
         }, { status: 500 });
       }
 
-      // 构造一个强大且明确的指令，强制保留原图内容
+      // 构造一个强大且明确的指令，强制保留原图内容并强调吉卜力风格
       // 如果用户没有输入具体描述，使用一个更通用的占位符
       const userContent = prompt.trim() ? prompt.trim() : "the subject in the image";
-      const apiPrompt = `Redraw the entire image in the style of "Studio Ghibli animation, hand-drawn, 2d cel animation, watercolor background, by Hayao Miyazaki". It is crucial to maintain the original subject, its colors, and the overall composition of the image. Only change the artistic style. The user's original prompt was: '${userContent}'.`;
+      
+      // 使用全局统一的风格指令
+      const apiPrompt = `Redraw the entire image in the style of ${ghibliMasterStyle}. It is absolutely crucial to maintain the original subject, its core colors, and the overall composition. The only intended change is the artistic style. User's guidance: '${userContent}'.`;
       
       console.log(`🎨 flux-kontext-pro 图生图: {\n  userPrompt: '${prompt}',\n  finalApiPrompt: '${apiPrompt}'\n}`);
 
@@ -255,17 +260,13 @@ export async function POST(request: NextRequest) {
       }
 
       console.log(`🎨 ismaque.org flux-kontext-pro 文生图: {\n  userPrompt: '${prompt}',\n  aspectRatio: '${aspectRatio}',\n  quality: '${quality}',\n  size: '${getSizeFromAspectRatio(aspectRatio)}',\n  promptLength: ${prompt.length}\n}`);
+      
+      // 组合最终的API提示词，移除所有复杂的防重复中文指令
+      const apiPrompt = `${prompt.trim()}, ${ghibliMasterStyle}`;
 
-      // 优化提示词，确保格式正确且内容安全
-      let enhancedPrompt = prompt.trim();
-      if (!enhancedPrompt || enhancedPrompt === "A beautiful picture" || enhancedPrompt.length < 5) {
-        enhancedPrompt = "beautiful landscape with trees and mountains";
-      }
+      // 根治重复问题的关键：使用负向提示词
+      const negativePrompt = "multiple women, multiple men, multiple people, duplicated characters, twins, two people, three people, ugly, deformed, noisy, blurry, low-contrast, grainy";
       
-      // 清理提示词，移除可能引起格式错误的特殊字符
-      enhancedPrompt = enhancedPrompt.replace(/[^\w\s,.-]/g, '').trim();
-      
-      const apiPrompt = `${enhancedPrompt}, Studio Ghibli style animation, hand drawn illustration`;
       const mappedSize = getSizeFromAspectRatio(aspectRatio)
 
       console.log("📏 API请求尺寸:", mappedSize)
@@ -281,13 +282,14 @@ export async function POST(request: NextRequest) {
       const finalAspectRatio = aspectRatioMap[aspectRatio] || "1:1";
       
       console.log("📡 发送请求到 ismaque.org API...");
+      console.log("📄 提示词处理过程:");
+      console.log("  原始提示词:", `"${prompt}"`);
+      console.log("  最终API提示词:", `"${apiPrompt}"`);
+      console.log("  负向提示词:", `"${negativePrompt}"`);
       console.log("📄 请求参数:");
       console.log("  model:", "flux-kontext-pro");
-      console.log("  prompt (partial):", apiPrompt.substring(0, 100) + "...");
       console.log("  aspect_ratio:", finalAspectRatio);
-      console.log("  prompt长度:", apiPrompt.length);
       console.log("  API密钥存在:", !!ismaqueApiKey);
-      console.log(`📐 使用aspect_ratio: ${finalAspectRatio} (原始: ${aspectRatio})`);
 
       const myHeaders = new Headers()
       myHeaders.append("Authorization", `Bearer ${ismaqueApiKey}`)
@@ -295,6 +297,7 @@ export async function POST(request: NextRequest) {
 
       const rawObject: any = {
         "prompt": apiPrompt,
+        "negative_prompt": negativePrompt,
         "n": 1,
         "model": "flux-kontext-pro",
         "aspect_ratio": finalAspectRatio,
