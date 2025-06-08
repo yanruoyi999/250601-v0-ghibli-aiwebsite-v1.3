@@ -15,6 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+<<<<<<< Updated upstream
       <body>
         <Script
           strategy="beforeInteractive"
@@ -24,6 +25,14 @@ export default function RootLayout({
         />
         {children}
       </body>
+=======
+      <Script
+        strategy="beforeInteractive"
+        src="https://plausible.io/js/script.js"
+        data-domain="ghibliart.top"
+      />
+      <body>{children}</body>
+>>>>>>> Stashed changes
     </html>
   )
 }
