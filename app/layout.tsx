@@ -14,6 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <script defer data-domain="ghibliart.top" src="https://plausible.io/js/script.js"></script>
       <body>{children}</body>
     </html>
   )
