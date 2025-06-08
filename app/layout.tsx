@@ -16,6 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       <body>
         <Script
           strategy="beforeInteractive"
@@ -26,6 +27,8 @@ export default function RootLayout({
         {children}
       </body>
 =======
+=======
+>>>>>>> Stashed changes
       <Script
         strategy="beforeInteractive"
         src="https://plausible.io/js/script.js"
