@@ -26,6 +26,7 @@ export default function GhibliAI() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0)
+  const [history, setHistory] = useState<GeneratedImage[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const aspectRatios = [
@@ -43,6 +44,26 @@ export default function GhibliAI() {
     "A traditional Japanese village street, old buildings, soft morning light, quiet everyday life",
     "A cozy indoor scene with warm lighting, simple furniture, plants by the window, homely atmosphere"
   ]
+
+  useEffect(() => {
+    // On initial load, try to get history from localStorage.
+    try {
+      const savedHistory = localStorage.getItem("ghibli-ai-history");
+      if (savedHistory) {
+        setHistory(JSON.parse(savedHistory));
+      }
+    } catch (error) {
+      console.error("Failed to parse history from localStorage", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    // This effect runs whenever the `history` state changes.
+    // We avoid writing to localStorage on the initial empty state.
+    if (history.length > 0) {
+      localStorage.setItem("ghibli-ai-history", JSON.stringify(history));
+    }
+  }, [history]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -182,12 +203,14 @@ export default function GhibliAI() {
         const newImage: GeneratedImage = {
           id: Date.now().toString(),
           url: data.imageUrl,
-          prompt: data.prompt,
+          prompt: finalPrompt,
           aspectRatio,
           timestamp: Date.now(),
         }
 
         setCurrentImage(newImage)
+        // Add to the beginning of the history array
+        setHistory(prevHistory => [newImage, ...prevHistory]);
 
         // 显示成功消息
         setTimeout(() => {
@@ -246,6 +269,32 @@ export default function GhibliAI() {
       console.error("下载失败:", error)
     }
   }
+
+  const downloadHistoryImage = async (e: React.MouseEvent<HTMLButtonElement>, imageUrl: string, imageId: string) => {
+    e.stopPropagation(); // 阻止事件冒泡，防止触发卡片的点击事件
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = `ghibli-ai-${imageId}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("下载历史图片失败:", error);
+    }
+  };
+
+  const handleHistoryItemClick = (image: GeneratedImage) => {
+    setCurrentImage(image);
+    setPrompt(image.prompt);
+    setAspectRatio(image.aspectRatio);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-slate-800 to-amber-900">
@@ -334,7 +383,7 @@ export default function GhibliAI() {
                   className="w-full h-32 px-4 py-3 bg-slate-700/50 border border-amber-600/20 rounded-2xl text-amber-100 placeholder-amber-200/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 resize-none"
                   maxLength={500}
                 />
-                <div className="text-right text-amber-200/50 text-xs mt-1">{prompt.length}/500</div>
+                <div className="text-right text-amber-200/50 text-xs mt-1">{prompt?.length || 0}/500</div>
                 
                 {/* Example Prompts */}
                 <div className="mt-4 p-4 bg-slate-700/30 border border-amber-600/20 rounded-2xl">
@@ -450,6 +499,41 @@ export default function GhibliAI() {
             </CardContent>
           </Card>
         </div>
+
+        {/* History Section */}
+        {history.length > 0 && (
+          <div className="mt-16 max-w-7xl mx-auto">
+            <h2 className="text-3xl font-bold text-amber-100 mb-8 text-center">生成历史 / History</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {history.map((image) => (
+                <div 
+                  key={image.id} 
+                  className="overflow-hidden cursor-pointer group relative bg-slate-800/50 border-amber-600/20 backdrop-blur-sm rounded-2xl"
+                  onClick={() => handleHistoryItemClick(image)}
+                >
+                  <img src={image.url} alt={image.prompt} className="aspect-square object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />
+                  
+                  {/* Prompt Overlay */}
+                  <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-4">
+                      <p className="text-white text-sm text-center line-clamp-4">{image.prompt}</p>
+                  </div>
+
+                  {/* Download Button */}
+                  <div className="absolute bottom-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <Button
+                      size="sm"
+                      className="w-full bg-amber-500/80 hover:bg-amber-500 text-slate-900 font-bold backdrop-blur-sm"
+                      onClick={(e) => downloadHistoryImage(e, image.url, image.id)}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
