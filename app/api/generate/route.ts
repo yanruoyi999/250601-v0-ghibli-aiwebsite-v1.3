@@ -31,8 +31,8 @@ async function uploadImageToR2(base64Data: string): Promise<string> {
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     credentials: {
-      accessKeyId,
-      secretAccessKey,
+      accessKeyId: accessKeyId,
+      secretAccessKey: secretAccessKey,
     },
   });
 
@@ -178,78 +178,74 @@ export async function POST(request: NextRequest) {
 
       console.log("📊 解析后的 Replicate 结果:", JSON.stringify(result, null, 2))
 
-      let imageUrl = null
+      let imageUrl: string | null = null
 
       // Replicate API 返回预测对象，需要轮询获取结果
       if (result.id && result.status) {
         console.log("📋 Replicate 预测ID:", result.id, "状态:", result.status)
 
-        if (result.status === "succeeded" && result.output) {
-          imageUrl = result.output
+        if (result.status === "succeeded" && result.output && typeof result.output === 'string') {
+          imageUrl = result.output;
           console.log("✅ 找到生成的图片URL:", imageUrl)
         } else if (result.status === "processing" || result.status === "starting") {
           console.log("⏳ Replicate 预测正在处理中，开始轮询...")
 
           const pollUrl = result.urls?.get || `https://api.replicate.com/v1/predictions/${result.id}`
-          const maxPolls = 30 // 最多轮询30次
+          const maxPolls = 60 // 增加轮询次数，总等待时间2分钟
           const pollInterval = 2000 // 每2秒轮询一次
 
           for (let i = 0; i < maxPolls; i++) {
             await new Promise(resolve => setTimeout(resolve, pollInterval))
 
             const pollResponse = await fetch(pollUrl, {
-              headers: {
-                'Authorization': `Token ${replicateApiKey}`,
-                'Content-Type': 'application/json'
-              }
+              headers: { Authorization: `Token ${replicateApiKey}` }
             })
+            const pollResult = await pollResponse.json()
 
-            if (pollResponse.ok) {
-              const pollResult = await pollResponse.json()
-              console.log(`📊 Replicate 轮询 ${i + 1}/${maxPolls}, 状态:`, pollResult.status)
+            console.log(`[轮询 ${i+1}/${maxPolls}] 状态: ${pollResult.status}`)
 
-              if (pollResult.status === "succeeded" && pollResult.output) {
+            if (pollResult.status === "succeeded") {
+              if (pollResult.output && typeof pollResult.output === 'string') {
                 imageUrl = pollResult.output
-                console.log("✅ Replicate 轮询成功，找到生成的图片URL:", imageUrl)
-                break
-              } else if (pollResult.status === "failed") {
-                throw new Error(`Replicate 图片生成失败: ${pollResult.error || "未知错误"}`)
+                console.log("✅ 轮询成功，获取到图片URL:", imageUrl)
+              } else {
+                 // 如果 output 是数组，尝试从中提取 URL
+                 if (Array.isArray(pollResult.output) && pollResult.output[0]) {
+                    imageUrl = pollResult.output[0];
+                    console.log("✅ 轮询成功，从数组中获取到图片URL:", imageUrl)
+                 } else {
+                    throw new Error("Replicate 任务成功但未返回有效的图片URL")
+                 }
               }
-            } else {
-                console.error(`❌ Replicate 轮询请求失败: ${pollResponse.status} - ${await pollResponse.text()}`);
+              break; // 成功获取，跳出循环
+            } else if (pollResult.status === "failed" || pollResult.status === "canceled") {
+              throw new Error(`Replicate 任务处理失败或被取消。状态: ${pollResult.status}, 错误: ${pollResult.error?.detail || '未知错误'}`)
             }
+            // 如果状态是 "starting" 或 "processing"，则继续轮询
           }
 
           if (!imageUrl) {
-            throw new Error("Replicate 图片生成超时，请稍后重试")
+            throw new Error("轮询超时，Replicate 任务未在规定时间内完成。")
           }
-        } else if (result.status === "failed") {
-          throw new Error(`Replicate 图片生成失败: ${result.error || "未知错误"}`)
+        } else {
+            // 初始状态就是失败或已取消
+            throw new Error(`Replicate 任务初始状态异常。状态: ${result.status}, 错误: ${result.error?.detail || '未知错误'}`)
         }
       } else {
-        console.error("❌ 无法从 Replicate API 响应中提取预测信息:", result)
-        throw new Error(`Replicate API返回数据格式异常: 无法找到预测数据`)
+        throw new Error("从 Replicate API 返回的响应格式不正确，缺少 id 或 status 字段。")
+      }
+      
+      // 确保我们真的获取到了 imageUrl
+      if (!imageUrl) {
+        throw new Error("图生图流程结束，但未能获取到任何有效的图片URL。")
       }
 
-      if (imageUrl) {
-        console.log(`🎉 Replicate 图片生成完成: ${imageUrl.substring(0, 100)}...`)
-        const totalTime = Date.now() - startTime
-        const responseData: any = {
-          success: true,
-          imageUrl: imageUrl,
-          message: "图片生成成功！",
-          stats: {
-            totalTime: `${totalTime}ms`,
-            model: "flux-kontext-pro (Replicate)",
-            aspectRatio: aspectRatio,
-            promptLength: apiPrompt.length,
-            predictionId: result.id
-          }
-        };
-        return NextResponse.json(responseData)
-      } else {
-        throw new Error("无法获取 Replicate 生成的图片")
-      }
+      // 构造统一的返回结构
+      return NextResponse.json({
+        success: true,
+        data: [{ url: imageUrl }],
+        created: Math.floor(Date.now() / 1000)
+      })
 
     } else {
       // --- 使用麻雀 API 进行文生图 ---
@@ -407,16 +403,11 @@ export async function POST(request: NextRequest) {
 
       if (imageUrl) {
         console.log(`🎉 图片生成完成: ${imageUrl.substring(0, 100)}...`)
-        const responseData: any = {
+        // 构造与前端期望一致的返回结构
+        const responseData = {
           success: true,
-          imageUrl: imageUrl,
-          message: "图片生成成功！",
-          stats: {
-            totalTime: `${requestTime}ms`,
-            model: "flux-kontext-pro (Ismaque)",
-            aspectRatio: aspectRatio,
-            promptLength: apiPrompt.length
-          }
+          data: [{ url: imageUrl }],
+          created: result.created || Math.floor(Date.now() / 1000),
         };
         return NextResponse.json(responseData)
       } else {
