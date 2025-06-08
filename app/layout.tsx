@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import Script from 'next/script'
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -14,7 +15,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <script defer data-domain="ghibliart.top" src="https://plausible.io/js/script.js"></script>
+      <Script
+        strategy="beforeInteractive"
+        src="https://plausible.io/js/script.js"
+        data-domain="ghibliart.top"
+      />
       <body>{children}</body>
     </html>
   )
